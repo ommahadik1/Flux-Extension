@@ -2,8 +2,9 @@
 
 Flux is a modern browser extension that seamlessly converts and localizes prices on any webpage using real-time global exchange rates. With a clean, minimal interface, Flux provides instant feedback and automatic price conversions directly on the sites you browse.
 
-> *[ Add a hero screenshot of the extension popup here ]*
-> `![Hero Image](path/to/screenshot1.png)`
+<div align="center">
+  <img src="assets/Screenshot%20Hero%20%26%20Dark.png" alt="Flux Hero Image" width="400"/>
+</div>
 
 ## Features
 
@@ -17,16 +18,13 @@ Flux is a modern browser extension that seamlessly converts and localizes prices
 ## Screenshots
 
 ### Dark Mode
-> *[ Add a screenshot showing the dark mode popup ]*
-> `![Dark Mode](path/to/screenshot2.png)`
+![Dark Mode](assets/Screenshot%20Hero%20%26%20Dark.png)
 
 ### Light Mode
-> *[ Add a screenshot showing the light mode popup ]*
-> `![Light Mode](path/to/screenshot3.png)`
+![Light Mode](assets/Screenshot%20Light.png)
 
 ### In-Page Conversion Example
-> *[ Add a screenshot showing a webpage with prices converted with the little ≈ badge ]*
-> `![In-Page Example](path/to/screenshot4.png)`
+![In-Page Example](assets/Web%20Example.png)
 
 ## Installation
 

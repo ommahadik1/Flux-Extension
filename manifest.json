@@ -13,18 +13,18 @@
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "Flux transparent-16x.png",
-    "32": "Flux transparent-32x.png",
-    "48": "Flux transparent-48x.png",
-    "128": "Flux transparent-128x.png"
+    "16": "assets/Flux transparent-16x.png",
+    "32": "assets/Flux transparent-32x.png",
+    "48": "assets/Flux transparent-48x.png",
+    "128": "assets/Flux transparent-128x.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "Flux transparent-16x.png",
-      "32": "Flux transparent-32x.png",
-      "48": "Flux transparent-48x.png",
-      "128": "Flux transparent-128x.png"
+      "16": "assets/Flux transparent-16x.png",
+      "32": "assets/Flux transparent-32x.png",
+      "48": "assets/Flux transparent-48x.png",
+      "128": "assets/Flux transparent-128x.png"
     }
   },
   "host_permissions": [
