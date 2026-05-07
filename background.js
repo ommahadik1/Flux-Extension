@@ -1,76 +1,115 @@
+// Background script for Universal Currency Converter
 
-// Background script for USD to INR Converter
+const UPDATE_INTERVAL_MINUTES = 60;
 
-// State management
-let state = {
-  exchangeRate: 83.88,
-  lastUpdate: null,
-  updateInterval: 3600000 // 1 hour in milliseconds
-};
-
-// Initialize state from storage
-chrome.storage.sync.get(['exchangeRate', 'lastUpdate'], (data) => {
-  if (data.exchangeRate) {
-    state.exchangeRate = data.exchangeRate;
-  }
-  if (data.lastUpdate) {
-    state.lastUpdate = data.lastUpdate;
-  }
-  
-  // Update exchange rate if needed
-  checkAndUpdateRate();
-});
-
-// Function to check and update exchange rate
-async function checkAndUpdateRate() {
-  const now = Date.now();
-  if (!state.lastUpdate || (now - state.lastUpdate > state.updateInterval)) {
-    try {
-      const response = await fetch('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/inr.json');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      
-      if (data && data.inr) {
-        state.exchangeRate = data.inr;
-        state.lastUpdate = now;
-        
-        // Save to storage
-        chrome.storage.sync.set({
-          exchangeRate: state.exchangeRate,
-          lastUpdate: state.lastUpdate
-        });
-        
-        // Notify all tabs
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach(tab => {
-            chrome.tabs.sendMessage(tab.id, {
-              action: 'updateExchangeRate',
-              exchangeRate: state.exchangeRate
-            }).catch(() => {});
-          });
-        });
-      }
-    } catch (error) {
-      console.error('Failed to update exchange rate:', error);
-    }
-  }
+function getApiUrls(baseCurrency) {
+  return [
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${baseCurrency}.json`,
+    `https://latest.currency-api.pages.dev/v1/currencies/${baseCurrency}.json`
+  ];
 }
 
-// Set up periodic rate checks
-setInterval(checkAndUpdateRate, 300000); // Check every 5 minutes
+async function updateExchangeRate() {
+  chrome.storage.local.get(["baseCurrency", "targetCurrency"], async (settings) => {
+    const base = settings.baseCurrency || "usd";
+    const target = settings.targetCurrency || "inr";
+    let data = null;
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'getExchangeRate') {
-    sendResponse({
-      exchangeRate: state.exchangeRate,
-      lastUpdate: state.lastUpdate
+    const urls = getApiUrls(base);
+
+    for (const url of urls) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        data = await response.json();
+        break;
+      } catch (error) {
+        console.warn(`Failed to fetch from ${url}:`, error.message);
+      }
+    }
+
+    if (!data) {
+      console.error("All API endpoints failed.");
+      return;
+    }
+
+    const newRate = data?.[base]?.[target];
+    if (!newRate || typeof newRate !== "number") {
+      console.error("Unexpected API response format:", data);
+      return;
+    }
+
+    await chrome.storage.local.set({
+      exchangeRate: newRate,
+      lastUpdate: Date.now(),
     });
-  } else if (request.action === 'forceUpdate') {
-    checkAndUpdateRate();
-    sendResponse({ status: 'updating' });
+
+    // Notify all tabs
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: "updateExchangeRate",
+          exchangeRate: newRate,
+          baseCurrency: base,
+          targetCurrency: target
+        });
+      } catch (_) {
+        // Content script not loaded on this tab
+      }
+    }
+  });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({
+    baseCurrency: "usd",
+    targetCurrency: "inr",
+    exchangeRate: 84.0, // Initial fallback
+    enabled: true,
+    showBadge: true,
+    disabledDomains: [],
+    lastUpdate: null,
+  });
+  updateExchangeRate();
+  chrome.alarms.create("updateExchangeRateAlarm", {
+    periodInMinutes: UPDATE_INTERVAL_MINUTES,
+  });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  updateExchangeRate();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "updateExchangeRateAlarm") {
+    updateExchangeRate();
   }
-  return true;
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "getExchangeRate") {
+    chrome.storage.local.get(["exchangeRate", "lastUpdate", "baseCurrency", "targetCurrency"], (data) => {
+      sendResponse({
+        exchangeRate: data.exchangeRate,
+        lastUpdate: data.lastUpdate,
+        baseCurrency: data.baseCurrency,
+        targetCurrency: data.targetCurrency
+      });
+    });
+    return true;
+  } else if (request.action === "forceUpdate") {
+    // If settings changed, we need to update them before fetching
+    if (request.baseCurrency && request.targetCurrency) {
+       chrome.storage.local.set({
+         baseCurrency: request.baseCurrency,
+         targetCurrency: request.targetCurrency
+       }, () => {
+         updateExchangeRate().then(() => sendResponse({ status: "updated" }));
+       });
+    } else {
+       updateExchangeRate().then(() => sendResponse({ status: "updated" }));
+    }
+    return true;
+  }
 });
