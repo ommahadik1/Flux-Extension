@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "USD to INR Converter",
+  "name": "Flux",
   "version": "2.1",
-  "description": "Converts US Dollar amounts to Indian Rupees on any webpage with per-site controls.",
+  "description": "A modern, fluid currency converter that seamlessly localizes prices on any webpage with real-time global exchange rates.",
   "permissions": [
     "activeTab",
     "storage",
@@ -12,9 +12,20 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "16": "Flux transparent-16x.png",
+    "32": "Flux transparent-32x.png",
+    "48": "Flux transparent-48x.png",
+    "128": "Flux transparent-128x.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icon.png"
+    "default_icon": {
+      "16": "Flux transparent-16x.png",
+      "32": "Flux transparent-32x.png",
+      "48": "Flux transparent-48x.png",
+      "128": "Flux transparent-128x.png"
+    }
   },
   "host_permissions": [
     "https://cdn.jsdelivr.net/*",

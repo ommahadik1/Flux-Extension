@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const refreshBtn = document.getElementById("refreshRate");
   const showBadgeToggle = document.getElementById("showBadge");
   const enabledToggle = document.getElementById("enabled");
+  const themeBtn = document.getElementById("themeBtn");
   
   const sitePowerBtn = document.getElementById("sitePower");
   const disabledSection = document.getElementById("disabledSection");
@@ -52,13 +53,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function loadSettings() {
     chrome.storage.local.get(
-      ["baseCurrency", "targetCurrency", "exchangeRate", "lastUpdate", "enabled", "showBadge", "disabledDomains"],
+      ["baseCurrency", "targetCurrency", "exchangeRate", "lastUpdate", "enabled", "showBadge", "disabledDomains", "theme"],
       (data) => {
         if (data.baseCurrency) baseCurrencySelect.value = data.baseCurrency;
         if (data.targetCurrency) targetCurrencySelect.value = data.targetCurrency;
         
         enabledToggle.checked = data.hasOwnProperty("enabled") ? data.enabled : true;
         showBadgeToggle.checked = data.hasOwnProperty("showBadge") ? data.showBadge : true;
+        
+        const currentTheme = data.theme || 'dark';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+
         disabledDomains = Array.isArray(data.disabledDomains) ? data.disabledDomains : [];
 
         updateRateDisplay(data.exchangeRate, data.lastUpdate);
@@ -120,10 +125,26 @@ document.addEventListener("DOMContentLoaded", () => {
   targetCurrencySelect.addEventListener("change", handleCurrencyChange);
 
   function swapCurrencies() {
-    const temp = baseCurrencySelect.value;
-    baseCurrencySelect.value = targetCurrencySelect.value;
-    targetCurrencySelect.value = temp;
-    handleCurrencyChange();
+    const groups = document.querySelectorAll('.select-group');
+    if (groups.length >= 2) {
+      groups[0].classList.add('swapping-down');
+      groups[1].classList.add('swapping-up');
+      
+      setTimeout(() => {
+        const temp = baseCurrencySelect.value;
+        baseCurrencySelect.value = targetCurrencySelect.value;
+        targetCurrencySelect.value = temp;
+        handleCurrencyChange();
+        
+        groups[0].classList.remove('swapping-down');
+        groups[1].classList.remove('swapping-up');
+      }, 200);
+    } else {
+      const temp = baseCurrencySelect.value;
+      baseCurrencySelect.value = targetCurrencySelect.value;
+      targetCurrencySelect.value = temp;
+      handleCurrencyChange();
+    }
   }
   
   swapBtn.addEventListener("click", swapCurrencies);
@@ -152,6 +173,15 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ enabled: val });
     notifyTabs({ action: "toggleEnabled", enabled: val });
   });
+
+  if (themeBtn) {
+    themeBtn.addEventListener("click", () => {
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      const newTheme = isLight ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      chrome.storage.local.set({ theme: newTheme });
+    });
+  }
 
   // ── Site Power ────────────────────────────────────────────────
 

@@ -12,16 +12,16 @@ let processedNodes = new WeakSet();
 
 // Using strings for regex source to avoid escape issues in literals
 const CURRENCIES = {
-  usd: { symbol: "$", locale: "en-US", code: "USD", regexStr: "\\$([\\d,]+\\.?\\d*)" },
-  eur: { symbol: "€", locale: "de-DE", code: "EUR", regexStr: "€\\s?([\\d.]+,?\\d*)" },
-  gbp: { symbol: "£", locale: "en-GB", code: "GBP", regexStr: "£([\\d,]+\\.?\\d*)" },
-  inr: { symbol: "₹", locale: "en-IN", code: "INR", regexStr: "₹\\s?([\\d,]+\\.?\\d*)" },
-  jpy: { symbol: "¥", locale: "ja-JP", code: "JPY", regexStr: "¥([\\d,]+\\.?\\d*)" },
-  cad: { symbol: "C$", locale: "en-CA", code: "CAD", regexStr: "(?:C\\$|CAD\\s)([\\d,]+\\.?\\d*)" },
-  aud: { symbol: "A$", locale: "en-AU", code: "AUD", regexStr: "(?:A\\$|AUD\\s)([\\d,]+\\.?\\d*)" },
-  chf: { symbol: "CHF", locale: "de-CH", code: "CHF", regexStr: "CHF\\s?([\\d']+\\.?\\d*)" },
-  cny: { symbol: "CN¥", locale: "zh-CN", code: "CNY", regexStr: "(?:CN¥|RMB)\\s?([\\d,]+\\.?\\d*)" },
-  sgd: { symbol: "S$", locale: "en-SG", code: "SGD", regexStr: "(?:S\\$|SGD\\s)([\\d,]+\\.?\\d*)" }
+  usd: { symbol: "$", locale: "en-US", code: "USD", regexStr: "\\$([\\d,]+\\.?\\d*)", regex: /\$([\d,]+\.?\d*)/g },
+  eur: { symbol: "€", locale: "de-DE", code: "EUR", regexStr: "€\\s?([\\d.]+,?\\d*)", regex: /€\s?([\d.]+,?\d*)/g },
+  gbp: { symbol: "£", locale: "en-GB", code: "GBP", regexStr: "£([\\d,]+\\.?\\d*)", regex: /£([\d,]+\.?\d*)/g },
+  inr: { symbol: "₹", locale: "en-IN", code: "INR", regexStr: "₹\\s?([\\d,]+\\.?\\d*)", regex: /₹\s?([\d,]+\.?\d*)/g },
+  jpy: { symbol: "¥", locale: "ja-JP", code: "JPY", regexStr: "¥([\\d,]+\\.?\\d*)", regex: /¥([\d,]+\.?\d*)/g },
+  cad: { symbol: "C$", locale: "en-CA", code: "CAD", regexStr: "(?:C\\$|CAD\\s)([\\d,]+\\.?\\d*)", regex: /(?:C\$|CAD\s)([\d,]+\.?\d*)/g },
+  aud: { symbol: "A$", locale: "en-AU", code: "AUD", regexStr: "(?:A\\$|AUD\\s)([\\d,]+\\.?\\d*)", regex: /(?:A\$|AUD\s)([\d,]+\.?\d*)/g },
+  chf: { symbol: "CHF", locale: "de-CH", code: "CHF", regexStr: "CHF\\s?([\\d']+\\.?\\d*)", regex: /CHF\s?([\d']+\.?\d*)/g },
+  cny: { symbol: "CN¥", locale: "zh-CN", code: "CNY", regexStr: "(?:CN¥|RMB)\\s?([\\d,]+\\.?\\d*)", regex: /(?:CN¥|RMB)\s?([\d,]+\.?\d*)/g },
+  sgd: { symbol: "S$", locale: "en-SG", code: "SGD", regexStr: "(?:S\\$|SGD\\s)([\\d,]+\\.?\\d*)", regex: /(?:S\$|SGD\s)([\d,]+\.?\d*)/g }
 };
 
 // ── Domain Utilities ──────────────────────────────────────────────
@@ -123,7 +123,7 @@ function convertTextNode(node) {
 
   const text = node.textContent;
   
-  const regexMatch = new RegExp(cur.regexStr, 'g');
+  const regexMatch = cur.regex;
   
   if (!regexMatch.test(text)) return;
   regexMatch.lastIndex = 0; 
@@ -283,13 +283,29 @@ function revertPrices() {
 
 // ── MutationObserver ─────────────────────────────────────────────
 
+let pendingNodes = [];
+let observerTimeout = null;
+
 const observer = new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     if (mutation.type === "childList") {
       for (const node of mutation.addedNodes) {
-        convertPrices(node);
+        pendingNodes.push(node);
       }
     }
+  }
+  
+  if (pendingNodes.length > 0) {
+    if (observerTimeout) clearTimeout(observerTimeout);
+    observerTimeout = setTimeout(() => {
+      const nodes = pendingNodes;
+      pendingNodes = [];
+      requestAnimationFrame(() => {
+        for (const node of nodes) {
+          convertPrices(node);
+        }
+      });
+    }, 100);
   }
 });
 

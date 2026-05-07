@@ -41,24 +41,29 @@ async function updateExchangeRate() {
 
     await chrome.storage.local.set({
       exchangeRate: newRate,
+      ratesCache: data[base],
+      cachedBase: base,
       lastUpdate: Date.now(),
     });
 
-    // Notify all tabs
-    const tabs = await chrome.tabs.query({});
-    for (const tab of tabs) {
-      try {
-        await chrome.tabs.sendMessage(tab.id, {
-          action: "updateExchangeRate",
-          exchangeRate: newRate,
-          baseCurrency: base,
-          targetCurrency: target
-        });
-      } catch (_) {
-        // Content script not loaded on this tab
-      }
-    }
+    await notifyTabs(newRate, base, target);
   });
+}
+
+async function notifyTabs(newRate, base, target) {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: "updateExchangeRate",
+        exchangeRate: newRate,
+        baseCurrency: base,
+        targetCurrency: target
+      });
+    } catch (_) {
+      // Content script not loaded on this tab
+    }
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -105,7 +110,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
          baseCurrency: request.baseCurrency,
          targetCurrency: request.targetCurrency
        }, () => {
-         updateExchangeRate().then(() => sendResponse({ status: "updated" }));
+         chrome.storage.local.get(["ratesCache", "cachedBase", "lastUpdate"], (cache) => {
+           const isFresh = cache.lastUpdate && (Date.now() - cache.lastUpdate < UPDATE_INTERVAL_MINUTES * 60 * 1000);
+           if (cache.cachedBase === request.baseCurrency && cache.ratesCache && isFresh) {
+             const newRate = cache.ratesCache[request.targetCurrency];
+             if (newRate) {
+               chrome.storage.local.set({ exchangeRate: newRate }, () => {
+                 notifyTabs(newRate, request.baseCurrency, request.targetCurrency);
+                 sendResponse({ status: "updated" });
+               });
+               return;
+             }
+           }
+           updateExchangeRate().then(() => sendResponse({ status: "updated" }));
+         });
        });
     } else {
        updateExchangeRate().then(() => sendResponse({ status: "updated" }));

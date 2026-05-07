@@ -1,91 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Currency Converter</title>
+  <title>Flux Converter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
-  
+
   <header>
     <div class="logo">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      <h1>Convert</h1>
+      <h1>Flux</h1>
     </div>
-    
-    <button id="sitePower" class="power-btn active" title="Toggle on this site">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-    </button>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button id="themeBtn" class="power-btn" style="background: transparent; border: none; box-shadow: none;" title="Toggle Theme">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+           <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+      <button id="sitePower" class="power-btn active" title="Toggle on this site">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+          <line x1="12" y1="2" x2="12" y2="12" />
+        </svg>
+      </button>
+    </div>
   </header>
 
   <main>
-    <section class="exchange-section">
-      <div class="currency-selectors">
-        <div class="select-group">
-          <label>From</label>
-          <select id="baseCurrency">
-            <option value="usd">USD ($)</option>
-            <option value="eur">EUR (€)</option>
-            <option value="gbp">GBP (£)</option>
-            <option value="inr">INR (₹)</option>
-            <option value="jpy">JPY (¥)</option>
-            <option value="cad">CAD (C$)</option>
-            <option value="aud">AUD (A$)</option>
-            <option value="chf">CHF (CHF)</option>
-            <option value="cny">CNY (CN¥)</option>
-            <option value="sgd">SGD (S$)</option>
-          </select>
-        </div>
-        
-        <button id="swapCurrencies" class="swap-btn" title="Swap currencies">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="14" x2="21" y2="3"/><polyline points="8 21 3 21 3 16"/><line x1="20" y1="10" x2="3" y2="21"/></svg>
-        </button>
-
-        <div class="select-group">
-          <label>To</label>
-          <select id="targetCurrency">
-            <option value="usd">USD ($)</option>
-            <option value="eur">EUR (€)</option>
-            <option value="gbp">GBP (£)</option>
-            <option value="inr" selected>INR (₹)</option>
-            <option value="jpy">JPY (¥)</option>
-            <option value="cad">CAD (C$)</option>
-            <option value="aud">AUD (A$)</option>
-            <option value="chf">CHF (CHF)</option>
-            <option value="cny">CNY (CN¥)</option>
-            <option value="sgd">SGD (S$)</option>
-          </select>
-        </div>
+    <section class="exchange-section view">
+      <div class="label-container">
+        <span class="pulse"></span>
+        <div class="label">Live Exchange Rate</div>
       </div>
 
       <div class="rate-display">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <span class="rate-val" id="currentRate">Loading...</span>
-          <span class="rate-meta" id="lastUpdated">Updated just now</span>
-        </div>
-        <button id="refreshRate" class="icon-btn" title="Refresh rate">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        </button>
+        <span id="currentRate" class="massive-rate">Loading...</span>
+        <span class="rate-meta" id="lastUpdated">Updated just now</span>
       </div>
+
+      <div class="currency-selectors">
+        <div class="select-group">
+          <label class="label">From</label>
+          <select id="baseCurrency" class="custom-select">
+            <option value="usd">USD</option>
+            <option value="eur">EUR</option>
+            <option value="gbp">GBP</option>
+            <option value="inr">INR</option>
+            <option value="jpy">JPY</option>
+            <option value="cad">CAD</option>
+            <option value="aud">AUD</option>
+            <option value="chf">CHF</option>
+            <option value="cny">CNY</option>
+            <option value="sgd">SGD</option>
+          </select>
+        </div>
+
+        <button id="swapCurrencies" class="swap-btn secondary" title="Swap currencies">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 3 21 3 21 8" />
+            <line x1="4" y1="14" x2="21" y2="3" />
+            <polyline points="8 21 3 21 3 16" />
+            <line x1="20" y1="10" x2="3" y2="21" />
+          </svg>
+        </button>
+
+        <div class="select-group">
+          <label class="label">To</label>
+          <select id="targetCurrency" class="custom-select">
+            <option value="usd">USD</option>
+            <option value="eur">EUR</option>
+            <option value="gbp">GBP</option>
+            <option value="inr" selected>INR</option>
+            <option value="jpy">JPY</option>
+            <option value="cad">CAD</option>
+            <option value="aud">AUD</option>
+            <option value="chf">CHF</option>
+            <option value="cny">CNY</option>
+            <option value="sgd">SGD</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="refreshRate" class="primary-btn">Force Update</button>
     </section>
 
-    <section class="settings-section">
+    <section class="settings-section view">
       <div class="setting-item">
         <div class="setting-info">
-          <span class="title">Status Badge</span>
-          <span class="desc">Show ≈ indicator on prices</span>
+          <span class="label" style="margin-bottom:0;">Status Badge</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="showBadge">
           <span class="slider"></span>
         </label>
       </div>
-      
+
       <div class="setting-item">
         <div class="setting-info">
-          <span class="title">Global Enable</span>
-          <span class="desc">Convert across all sites</span>
+          <span class="label" style="margin-bottom:0;">Global Enable</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="enabled">
@@ -93,13 +111,14 @@
         </label>
       </div>
     </section>
-    
-    <div id="disabledSection" class="disabled-section" style="display: none;">
-      <h3 class="section-title">Disabled Sites</h3>
+
+    <div id="disabledSection" class="disabled-section view" style="display: none;">
+      <div class="label">Disabled Sites</div>
       <div id="disabledList" class="disabled-list"></div>
     </div>
   </main>
 
   <script src="popup.js"></script>
 </body>
+
 </html>
