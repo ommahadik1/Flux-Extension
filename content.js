@@ -1,4 +1,4 @@
-// Content script for Universal Currency Converter
+// Content script for Flux Currency Converter
 
 let exchangeRate = 84.0;
 let baseCurrency = "usd";
@@ -10,19 +10,30 @@ let processedNodes = new WeakSet();
 
 // ── Currency Data ────────────────────────────────────────────────
 
-// Using strings for regex source to avoid escape issues in literals
+// Regex patterns defined as strings to create fresh instances each time.
+// This avoids shared lastIndex state issues with global regex objects.
 const CURRENCIES = {
-  usd: { symbol: "$", locale: "en-US", code: "USD", regexStr: "\\$([\\d,]+\\.?\\d*)", regex: /\$([\d,]+\.?\d*)/g },
-  eur: { symbol: "€", locale: "de-DE", code: "EUR", regexStr: "€\\s?([\\d.]+,?\\d*)", regex: /€\s?([\d.]+,?\d*)/g },
-  gbp: { symbol: "£", locale: "en-GB", code: "GBP", regexStr: "£([\\d,]+\\.?\\d*)", regex: /£([\d,]+\.?\d*)/g },
-  inr: { symbol: "₹", locale: "en-IN", code: "INR", regexStr: "₹\\s?([\\d,]+\\.?\\d*)", regex: /₹\s?([\d,]+\.?\d*)/g },
-  jpy: { symbol: "¥", locale: "ja-JP", code: "JPY", regexStr: "¥([\\d,]+\\.?\\d*)", regex: /¥([\d,]+\.?\d*)/g },
-  cad: { symbol: "C$", locale: "en-CA", code: "CAD", regexStr: "(?:C\\$|CAD\\s)([\\d,]+\\.?\\d*)", regex: /(?:C\$|CAD\s)([\d,]+\.?\d*)/g },
-  aud: { symbol: "A$", locale: "en-AU", code: "AUD", regexStr: "(?:A\\$|AUD\\s)([\\d,]+\\.?\\d*)", regex: /(?:A\$|AUD\s)([\d,]+\.?\d*)/g },
-  chf: { symbol: "CHF", locale: "de-CH", code: "CHF", regexStr: "CHF\\s?([\\d']+\\.?\\d*)", regex: /CHF\s?([\d']+\.?\d*)/g },
-  cny: { symbol: "CN¥", locale: "zh-CN", code: "CNY", regexStr: "(?:CN¥|RMB)\\s?([\\d,]+\\.?\\d*)", regex: /(?:CN¥|RMB)\s?([\d,]+\.?\d*)/g },
-  sgd: { symbol: "S$", locale: "en-SG", code: "SGD", regexStr: "(?:S\\$|SGD\\s)([\\d,]+\\.?\\d*)", regex: /(?:S\$|SGD\s)([\d,]+\.?\d*)/g }
+  usd: { symbol: "$", locale: "en-US", code: "USD", regexSource: "(?<![CAS])\\$([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  eur: { symbol: "€", locale: "de-DE", code: "EUR", regexSource: "€\\s?([\\d.]+,?\\d*)", regexFlags: "g" },
+  gbp: { symbol: "£", locale: "en-GB", code: "GBP", regexSource: "£([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  inr: { symbol: "₹", locale: "en-IN", code: "INR", regexSource: "₹\\s?([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  jpy: { symbol: "¥", locale: "ja-JP", code: "JPY", regexSource: "¥([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  cad: { symbol: "C$", locale: "en-CA", code: "CAD", regexSource: "(?:C\\$|CAD\\s)([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  aud: { symbol: "A$", locale: "en-AU", code: "AUD", regexSource: "(?:A\\$|AUD\\s)([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  chf: { symbol: "CHF", locale: "de-CH", code: "CHF", regexSource: "CHF\\s?([\\d']+\\.?\\d*)", regexFlags: "g" },
+  cny: { symbol: "CN¥", locale: "zh-CN", code: "CNY", regexSource: "(?:CN¥|RMB)\\s?([\\d,]+\\.?\\d*)", regexFlags: "g" },
+  sgd: { symbol: "S$", locale: "en-SG", code: "SGD", regexSource: "(?:S\\$|SGD\\s)([\\d,]+\\.?\\d*)", regexFlags: "g" }
 };
+
+/**
+ * Creates a fresh regex instance for the given currency.
+ * This prevents shared lastIndex state bugs from global regex reuse.
+ */
+function createCurrencyRegex(currencyCode) {
+  const cur = CURRENCIES[currencyCode];
+  if (!cur) return null;
+  return new RegExp(cur.regexSource, cur.regexFlags);
+}
 
 // ── Domain Utilities ──────────────────────────────────────────────
 
@@ -82,19 +93,19 @@ function parseCurrency(amountStr, currencyCode) {
 
 function createBadge(originalText) {
   const badge = document.createElement("sup");
-  badge.className = "usd-inr-badge";
+  badge.className = "flux-converted-badge";
   badge.textContent = "≈";
   badge.title = `Converted from ${originalText.trim()}`;
   return badge;
 }
 
 function removeBadges() {
-  document.querySelectorAll(".usd-inr-badge").forEach((b) => b.remove());
+  document.querySelectorAll(".flux-converted-badge").forEach((b) => b.remove());
 }
 
 function addBadges() {
-  document.querySelectorAll(".usd-inr-converted, [data-usd-converted]").forEach((el) => {
-    if (!el.querySelector(".usd-inr-badge") && el.dataset.originalPrice) {
+  document.querySelectorAll(".flux-converted, [data-flux-converted]").forEach((el) => {
+    if (!el.querySelector(".flux-converted-badge") && el.dataset.originalPrice) {
       el.appendChild(createBadge(el.dataset.originalPrice));
     }
   });
@@ -113,7 +124,7 @@ function convertTextNode(node) {
     parent.tagName === "STYLE" ||
     parent.tagName === "TEXTAREA" ||
     parent.tagName === "INPUT" ||
-    parent.closest("[data-usd-converted]")
+    parent.closest("[data-flux-converted]")
   ) {
     return;
   }
@@ -123,12 +134,16 @@ function convertTextNode(node) {
 
   const text = node.textContent;
   
-  const regexMatch = cur.regex;
+  // Create a fresh regex to avoid shared lastIndex state
+  const regex = createCurrencyRegex(baseCurrency);
+  if (!regex) return;
   
-  if (!regexMatch.test(text)) return;
-  regexMatch.lastIndex = 0; 
+  if (!regex.test(text)) return;
 
-  const newText = text.replace(regexMatch, (match, amountStr) => {
+  // Create another fresh regex for the replace pass (test() consumed the first one)
+  const replaceRegex = createCurrencyRegex(baseCurrency);
+
+  const newText = text.replace(replaceRegex, (match, amountStr) => {
     const amount = parseCurrency(amountStr, baseCurrency);
     if (!isNaN(amount) && amount > 0) {
       return formatCurrency(amount * exchangeRate, targetCurrency);
@@ -138,7 +153,7 @@ function convertTextNode(node) {
 
   if (text !== newText) {
     const span = document.createElement("span");
-    span.className = "usd-inr-converted";
+    span.className = "flux-converted";
     span.dataset.originalPrice = text;
     span.textContent = newText;
     span.style.cssText = "background:transparent;padding:0;margin:0;display:inline;";
@@ -155,27 +170,37 @@ function convertTextNode(node) {
 function convertStructuredPrices(root) {
   if (!root || !root.querySelectorAll) return;
 
-  const priceEls = root.querySelectorAll(".a-price:not([data-usd-converted]), .a-color-price:not([data-usd-converted]), .a-text-price:not([data-usd-converted])");
+  const priceEls = root.querySelectorAll(".a-price:not([data-flux-converted]), .a-color-price:not([data-flux-converted]), .a-text-price:not([data-flux-converted])");
 
   const cur = CURRENCIES[baseCurrency];
   if (!cur) return;
 
   for (const priceEl of priceEls) {
-    if (priceEl.closest("[data-usd-converted]") && priceEl.closest("[data-usd-converted]") !== priceEl) continue;
+    if (priceEl.closest("[data-flux-converted]") && priceEl.closest("[data-flux-converted]") !== priceEl) continue;
 
     const offscreen = priceEl.querySelector(".a-offscreen");
     const rawText = offscreen ? offscreen.textContent.trim() : priceEl.textContent.trim();
 
-    const match = rawText.match(new RegExp(cur.regexStr));
+    // Fresh regex instance for each price element
+    const regex = createCurrencyRegex(baseCurrency);
+    if (!regex) continue;
+
+    const match = rawText.match(regex);
     if (!match) continue;
 
-    const amount = parseCurrency(match[1], baseCurrency);
+    // match[0] is full match, we need the capture group
+    // Re-parse with a named approach
+    const singleRegex = new RegExp(cur.regexSource);
+    const singleMatch = rawText.match(singleRegex);
+    if (!singleMatch || !singleMatch[1]) continue;
+
+    const amount = parseCurrency(singleMatch[1], baseCurrency);
     if (isNaN(amount) || amount <= 0) continue;
 
     const convertedValue = amount * exchangeRate;
     const formatted = formatCurrency(convertedValue, targetCurrency);
     
-    priceEl.dataset.usdConverted = "true";
+    priceEl.dataset.fluxConverted = "true";
     priceEl.dataset.originalPrice = rawText;
 
     const symbolEl = priceEl.querySelector(".a-price-symbol");
@@ -184,13 +209,13 @@ function convertStructuredPrices(root) {
 
     if (symbolEl && wholeEl) {
       symbolEl.dataset.origText = symbolEl.textContent;
-      symbolEl.textContent = CURRENCIES[targetCurrency].symbol;
+      symbolEl.textContent = CURRENCIES[targetCurrency]?.symbol || targetCurrency.toUpperCase();
 
-      const numOnly = formatted.replace(CURRENCIES[targetCurrency].symbol, "").trim();
+      const numOnly = formatted.replace(CURRENCIES[targetCurrency]?.symbol || "", "").trim();
       let wholeStr = numOnly;
       let fractionStr = "";
       
-      const sep = CURRENCIES[targetCurrency].locale.startsWith('de') ? ',' : '.';
+      const sep = CURRENCIES[targetCurrency]?.locale?.startsWith('de') ? ',' : '.';
       if (numOnly.includes(sep)) {
         const parts = numOnly.split(sep);
         fractionStr = parts.pop();
@@ -236,7 +261,7 @@ function convertPrices(node) {
   if (node.nodeType === Node.TEXT_NODE) {
     convertTextNode(node);
   } else if (node.nodeType === Node.ELEMENT_NODE) {
-    if (node.dataset && (node.dataset.originalPrice || node.dataset.usdConverted)) return;
+    if (node.dataset && (node.dataset.originalPrice || node.dataset.fluxConverted)) return;
 
     convertStructuredPrices(node);
 
@@ -251,12 +276,18 @@ function convertPrices(node) {
 // ── Revert ───────────────────────────────────────────────────────
 
 function revertPrices() {
+  document.querySelectorAll(".flux-converted").forEach((el) => {
+    const textNode = document.createTextNode(el.dataset.originalPrice || "");
+    if (el.parentElement) el.parentElement.replaceChild(textNode, el);
+  });
+
+  // Legacy class name support (in case page was converted before this update)
   document.querySelectorAll(".usd-inr-converted").forEach((el) => {
     const textNode = document.createTextNode(el.dataset.originalPrice || "");
     if (el.parentElement) el.parentElement.replaceChild(textNode, el);
   });
 
-  document.querySelectorAll("[data-usd-converted]").forEach((priceEl) => {
+  document.querySelectorAll("[data-flux-converted], [data-usd-converted]").forEach((priceEl) => {
     if (priceEl.dataset.origText !== undefined) {
        priceEl.textContent = priceEl.dataset.origText;
        delete priceEl.dataset.origText;
@@ -273,7 +304,8 @@ function revertPrices() {
       });
     }
 
-    priceEl.querySelectorAll(".usd-inr-badge").forEach((b) => b.remove());
+    priceEl.querySelectorAll(".flux-converted-badge, .usd-inr-badge").forEach((b) => b.remove());
+    delete priceEl.dataset.fluxConverted;
     delete priceEl.dataset.usdConverted;
     delete priceEl.dataset.originalPrice;
   });

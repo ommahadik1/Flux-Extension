@@ -1,6 +1,9 @@
-// Background script for Universal Currency Converter
+// Background script for Flux Currency Converter
 
 const UPDATE_INTERVAL_MINUTES = 60;
+
+// Track the latest forceUpdate request to discard stale responses
+let latestRequestId = 0;
 
 function getApiUrls(baseCurrency) {
   return [
@@ -9,45 +12,69 @@ function getApiUrls(baseCurrency) {
   ];
 }
 
-async function updateExchangeRate() {
-  chrome.storage.local.get(["baseCurrency", "targetCurrency"], async (settings) => {
-    const base = settings.baseCurrency || "usd";
-    const target = settings.targetCurrency || "inr";
-    let data = null;
+/**
+ * Fetches the exchange rate for a given currency pair.
+ * Accepts base and target directly to avoid reading stale storage state.
+ * Returns a Promise that resolves with { rate, allRates, base, target }.
+ */
+async function fetchExchangeRate(base, target) {
+  const urls = getApiUrls(base);
+  let data = null;
 
-    const urls = getApiUrls(base);
-
-    for (const url of urls) {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        data = await response.json();
-        break;
-      } catch (error) {
-        console.warn(`Failed to fetch from ${url}:`, error.message);
-      }
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = await response.json();
+      break;
+    } catch (error) {
+      console.warn(`Failed to fetch from ${url}:`, error.message);
     }
+  }
 
-    if (!data) {
-      console.error("All API endpoints failed.");
-      return;
-    }
+  if (!data) {
+    throw new Error("All API endpoints failed.");
+  }
 
-    const newRate = data?.[base]?.[target];
-    if (!newRate || typeof newRate !== "number") {
-      console.error("Unexpected API response format:", data);
-      return;
-    }
+  const rate = data?.[base]?.[target];
+  if (!rate || typeof rate !== "number") {
+    throw new Error(`Unexpected API response format for ${base}->${target}`);
+  }
 
-    await chrome.storage.local.set({
-      exchangeRate: newRate,
-      ratesCache: data[base],
-      cachedBase: base,
-      lastUpdate: Date.now(),
-    });
+  return { rate, allRates: data[base], base, target };
+}
 
-    await notifyTabs(newRate, base, target);
+/**
+ * Updates exchange rate and persists to storage.
+ * Can be called from alarms/startup (reads storage for currencies)
+ * or with explicit base/target params (from forceUpdate).
+ */
+async function updateExchangeRate(baseOverride, targetOverride) {
+  let base = baseOverride;
+  let target = targetOverride;
+
+  // If not provided, read from storage
+  if (!base || !target) {
+    const settings = await chrome.storage.local.get(["baseCurrency", "targetCurrency"]);
+    base = settings.baseCurrency || "usd";
+    target = settings.targetCurrency || "inr";
+  }
+
+  const result = await fetchExchangeRate(base, target);
+
+  const now = Date.now();
+  await chrome.storage.local.set({
+    exchangeRate: result.rate,
+    ratesCache: result.allRates,
+    cachedBase: result.base,
+    baseCurrency: result.base,
+    targetCurrency: result.target,
+    lastUpdate: now,
   });
+
+  await notifyTabs(result.rate, result.base, result.target);
+
+  return { rate: result.rate, lastUpdate: now, base: result.base, target: result.target };
 }
 
 async function notifyTabs(newRate, base, target) {
@@ -76,19 +103,19 @@ chrome.runtime.onInstalled.addListener(() => {
     disabledDomains: [],
     lastUpdate: null,
   });
-  updateExchangeRate();
+  updateExchangeRate("usd", "inr").catch(console.error);
   chrome.alarms.create("updateExchangeRateAlarm", {
     periodInMinutes: UPDATE_INTERVAL_MINUTES,
   });
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  updateExchangeRate();
+  updateExchangeRate().catch(console.error);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "updateExchangeRateAlarm") {
-    updateExchangeRate();
+    updateExchangeRate().catch(console.error);
   }
 });
 
@@ -103,31 +130,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     });
     return true;
+
   } else if (request.action === "forceUpdate") {
-    // If settings changed, we need to update them before fetching
-    if (request.baseCurrency && request.targetCurrency) {
-       chrome.storage.local.set({
-         baseCurrency: request.baseCurrency,
-         targetCurrency: request.targetCurrency
-       }, () => {
-         chrome.storage.local.get(["ratesCache", "cachedBase", "lastUpdate"], (cache) => {
-           const isFresh = cache.lastUpdate && (Date.now() - cache.lastUpdate < UPDATE_INTERVAL_MINUTES * 60 * 1000);
-           if (cache.cachedBase === request.baseCurrency && cache.ratesCache && isFresh) {
-             const newRate = cache.ratesCache[request.targetCurrency];
-             if (newRate) {
-               chrome.storage.local.set({ exchangeRate: newRate }, () => {
-                 notifyTabs(newRate, request.baseCurrency, request.targetCurrency);
-                 sendResponse({ status: "updated" });
-               });
-               return;
-             }
-           }
-           updateExchangeRate().then(() => sendResponse({ status: "updated" }));
-         });
-       });
-    } else {
-       updateExchangeRate().then(() => sendResponse({ status: "updated" }));
+    const base = request.baseCurrency;
+    const target = request.targetCurrency;
+    const requestId = ++latestRequestId;
+
+    if (!base || !target) {
+      updateExchangeRate()
+        .then((result) => {
+          if (requestId === latestRequestId) {
+            sendResponse({ status: "updated", exchangeRate: result.rate, lastUpdate: result.lastUpdate });
+          } else {
+            sendResponse({ status: "stale" });
+          }
+        })
+        .catch((err) => {
+          console.error("forceUpdate failed:", err);
+          sendResponse({ status: "error", message: err.message });
+        });
+      return true;
     }
+
+    // Save the new currency selection immediately
+    chrome.storage.local.set({ baseCurrency: base, targetCurrency: target });
+
+    // Try cache first — if we have fresh rates for this base currency, use them
+    chrome.storage.local.get(["ratesCache", "cachedBase", "lastUpdate"], (cache) => {
+      const isFresh = cache.lastUpdate && (Date.now() - cache.lastUpdate < UPDATE_INTERVAL_MINUTES * 60 * 1000);
+
+      if (cache.cachedBase === base && cache.ratesCache && isFresh) {
+        const cachedRate = cache.ratesCache[target];
+        if (cachedRate && typeof cachedRate === "number") {
+          // Discard if a newer request has superseded this one
+          if (requestId !== latestRequestId) {
+            sendResponse({ status: "stale" });
+            return;
+          }
+
+          const now = Date.now();
+          chrome.storage.local.set({ exchangeRate: cachedRate, lastUpdate: now }, () => {
+            notifyTabs(cachedRate, base, target);
+            sendResponse({ status: "updated", exchangeRate: cachedRate, lastUpdate: now });
+          });
+          return;
+        }
+      }
+
+      // Cache miss — fetch fresh rates
+      updateExchangeRate(base, target)
+        .then((result) => {
+          if (requestId === latestRequestId) {
+            sendResponse({ status: "updated", exchangeRate: result.rate, lastUpdate: result.lastUpdate });
+          } else {
+            sendResponse({ status: "stale" });
+          }
+        })
+        .catch((err) => {
+          console.error("forceUpdate fetch failed:", err);
+          sendResponse({ status: "error", message: err.message });
+        });
+    });
+
     return true;
   }
 });

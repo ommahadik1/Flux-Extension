@@ -1,4 +1,4 @@
-// Popup script for Universal Currency Converter
+// Popup script for Flux Currency Converter
 
 document.addEventListener("DOMContentLoaded", () => {
   const baseCurrencySelect = document.getElementById("baseCurrency");
@@ -17,6 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentRootDomain = null;
   let disabledDomains = [];
+
+  // ── Request tracking for race condition prevention ────────────
+  let currentRequestId = 0;
+  let debounceTimer = null;
 
   // ── Currency Symbols Map ──────────────────────────────────────
   const SYMBOLS = {
@@ -87,17 +91,23 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Format nicely based on value (e.g., JPY needs no decimals, small values need more)
     let formattedRate;
-    if (rate < 0.01) formattedRate = rate.toFixed(4);
+    if (rate < 0.01) formattedRate = rate.toFixed(6);
+    else if (rate < 1) formattedRate = rate.toFixed(4);
     else if (target === 'jpy') formattedRate = rate.toFixed(0);
     else formattedRate = rate.toFixed(2);
 
-    currentRateEl.textContent = `1 ${SYMBOLS[base]} = ${formattedRate} ${SYMBOLS[target]}`;
+    currentRateEl.textContent = `1 ${SYMBOLS[base] || base.toUpperCase()} = ${formattedRate} ${SYMBOLS[target] || target.toUpperCase()}`;
     
     if (lastUpdate) {
       lastUpdatedEl.textContent = `Updated ${timeAgo(lastUpdate)}`;
     }
   }
 
+  /**
+   * Debounced currency change handler.
+   * Coalesces rapid changes into a single request and tracks request IDs
+   * to discard stale responses from earlier requests.
+   */
   function handleCurrencyChange() {
     if (baseCurrencySelect.value === targetCurrencySelect.value) {
       // Prevent same currency by swapping
@@ -107,18 +117,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
     currentRateEl.textContent = "Loading...";
     
-    const base = baseCurrencySelect.value;
-    const target = targetCurrencySelect.value;
+    // Clear any pending debounced request
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
 
-    chrome.runtime.sendMessage({ 
-      action: "forceUpdate", 
-      baseCurrency: base, 
-      targetCurrency: target 
-    }, () => {
-      chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
-        updateRateDisplay(data.exchangeRate, data.lastUpdate);
+    debounceTimer = setTimeout(() => {
+      const base = baseCurrencySelect.value;
+      const target = targetCurrencySelect.value;
+      const thisRequestId = ++currentRequestId;
+
+      chrome.runtime.sendMessage({ 
+        action: "forceUpdate", 
+        baseCurrency: base, 
+        targetCurrency: target 
+      }, (response) => {
+        // Discard if a newer request has been made since this one
+        if (thisRequestId !== currentRequestId) return;
+
+        if (response?.status === "stale") {
+          // Background discarded this as stale too — re-request
+          handleCurrencyChange();
+          return;
+        }
+
+        if (response?.exchangeRate) {
+          updateRateDisplay(response.exchangeRate, response.lastUpdate);
+        } else {
+          // Fallback: read from storage if response didn't include rate
+          chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
+            if (thisRequestId === currentRequestId) {
+              updateRateDisplay(data.exchangeRate, data.lastUpdate);
+            }
+          });
+        }
       });
-    });
+    }, 300);
   }
 
   baseCurrencySelect.addEventListener("change", handleCurrencyChange);
@@ -152,11 +186,26 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshBtn.addEventListener("click", () => {
     refreshBtn.classList.add("spinning");
     currentRateEl.textContent = "Loading...";
-    chrome.runtime.sendMessage({ action: "forceUpdate", baseCurrency: baseCurrencySelect.value, targetCurrency: targetCurrencySelect.value }, () => {
+    const thisRequestId = ++currentRequestId;
+
+    chrome.runtime.sendMessage({ 
+      action: "forceUpdate", 
+      baseCurrency: baseCurrencySelect.value, 
+      targetCurrency: targetCurrencySelect.value 
+    }, (response) => {
       refreshBtn.classList.remove("spinning");
-      chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
-        updateRateDisplay(data.exchangeRate, data.lastUpdate);
-      });
+      
+      if (thisRequestId !== currentRequestId) return;
+
+      if (response?.exchangeRate) {
+        updateRateDisplay(response.exchangeRate, response.lastUpdate);
+      } else {
+        chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
+          if (thisRequestId === currentRequestId) {
+            updateRateDisplay(data.exchangeRate, data.lastUpdate);
+          }
+        });
+      }
     });
   });
 
