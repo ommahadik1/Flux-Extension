@@ -3,6 +3,9 @@
 const UPDATE_INTERVAL_MINUTES = 60;
 
 // Track the latest forceUpdate request to discard stale responses
+// NOTE: latestRequestId resets on every service worker restart (MV3 limitation).
+// A response in-flight across a SW restart will be discarded as stale (ID mismatch).
+// This is an acceptable edge case — the user can manually refresh.
 let latestRequestId = 0;
 
 function getApiUrls(baseCurrency) {
@@ -37,7 +40,7 @@ async function fetchExchangeRate(base, target) {
   }
 
   const rate = data?.[base]?.[target];
-  if (!rate || typeof rate !== "number") {
+  if (typeof rate !== "number" || !isFinite(rate) || rate <= 0) {
     throw new Error(`Unexpected API response format for ${base}->${target}`);
   }
 
@@ -194,4 +197,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     return true;
   }
+
+  // Safety net: keep the message channel open for any unhandled async paths.
+  return true;
 });
