@@ -10,7 +10,7 @@ Flux is a modern browser extension that seamlessly converts and localizes prices
 
 | Browser | Link |
 |---|---|
-| **Chrome / Chromium** | [Chrome Web Store](https://chromewebstore.google.com/detail/lageadcjahlpmmbepfmehmcmbndpfkkk) |
+| **Chrome / Other Chromium-based Browsers** | [Chrome Web Store](https://chromewebstore.google.com/detail/lageadcjahlpmmbepfmehmcmbndpfkkk) |
 | **Firefox** | [Manual Install](#for-firefox) *(AMO listing coming soon)* |
 | **Microsoft Edge** | [Manual Install](#for-developers-manual-installation) *(Edge Add-ons listing coming soon)* |
 
