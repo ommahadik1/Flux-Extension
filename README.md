@@ -97,5 +97,5 @@ Having issues, suggestions, or feature requests?
 - 📧 **Email**: [support@satya-nayak.dev](mailto:support@satya-nayak.dev)
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Satya-Siba-Nayak/Flux-Extension/issues)
 
-## License
+## License 
 [MIT License](LICENSE)
