@@ -362,8 +362,8 @@ function initialize() {
       if (data.exchangeRate) exchangeRate = data.exchangeRate;
       if (data.baseCurrency) baseCurrency = data.baseCurrency;
       if (data.targetCurrency) targetCurrency = data.targetCurrency;
-      if (data.hasOwnProperty("enabled")) isEnabled = data.enabled;
-      if (data.hasOwnProperty("showBadge")) showBadge = data.showBadge;
+      if (Object.prototype.hasOwnProperty.call(data, "enabled")) isEnabled = data.enabled;
+      if (Object.prototype.hasOwnProperty.call(data, "showBadge")) showBadge = data.showBadge;
       if (Array.isArray(data.disabledDomains)) disabledDomains = data.disabledDomains;
 
       if (isEnabled && !isDomainDisabled()) {

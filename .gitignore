@@ -1,2 +1,27 @@
-.vscode/settings.json
+# Dependencies
+node_modules/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Project IDX
 .idx/
+
+# Qodo
+.qodo/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build / Package artifacts
+*.zip
+*.crx
+*.xpi
+web-ext-artifacts/

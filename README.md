@@ -10,7 +10,7 @@ Flux is a modern browser extension that seamlessly converts and localizes prices
 
 | Browser | Link |
 |---|---|
-| **Chrome / Chromium** | [Chrome Web Store](https://chromewebstore.google.com/detail/lageadcjahlpmmbepfmehmcmbndpfkkk) |
+| **Chrome / Other Chromium-based Browsers** | [Chrome Web Store](https://chromewebstore.google.com/detail/lageadcjahlpmmbepfmehmcmbndpfkkk) |
 | **Firefox** | [Manual Install](#for-firefox) *(AMO listing coming soon)* |
 | **Microsoft Edge** | [Manual Install](#for-developers-manual-installation) *(Edge Add-ons listing coming soon)* |
 
@@ -90,12 +90,58 @@ Flux currently supports major currencies including USD, EUR, GBP, INR, JPY, CAD,
 - **CSS3**: Custom variables for light/dark theming and clean layout styling.
 - **API**: Powered by [fawazahmed0/currency-api](https://github.com/fawazahmed0/currency-api).
 
+## Contributing
+
+Contributions are welcome! Whether it's a bug fix, new feature, or documentation improvement — here's how to get started:
+
+### Getting Set Up
+
+1. **Fork** this repository and clone your fork:
+   ```bash
+   git clone https://github.com/<your-username>/Flux-Extension.git
+   cd Flux-Extension
+   ```
+2. **Install dependencies** (Node.js 20+ required):
+   ```bash
+   npm install
+   ```
+3. **Create a branch** for your change:
+   ```bash
+   git checkout -b feat/your-feature-name
+   ```
+
+### Development Workflow
+
+- **Lint your code** before committing — the CI will reject PRs that fail linting:
+  ```bash
+  npm run lint          # check for issues
+  npm run lint:fix      # auto-fix what's possible
+  ```
+- **Load the extension locally** to test your changes:
+  - Chrome → `chrome://extensions/` → Developer mode → Load unpacked
+  - Firefox → `about:debugging#/runtime/this-firefox` → Load Temporary Add-on
+  - Edge → `edge://extensions/` → Developer mode → Load unpacked
+
+### Opening a Pull Request
+
+1. Push your branch and open a PR against `main`.
+2. Your PR will go through **two automated checks** — both must pass before merging:
+
+   | Check | What It Does |
+   |---|---|
+   | **lint** (GitHub Actions) | Runs `npm run lint` via ESLint to enforce code quality |
+   | **CodeRabbit** (AI Review) | Performs an automated code review with suggestions and feedback |
+
+3. A maintainer will review and approve once all checks pass.
+
+> **Branch Rules**: The `main` branch is protected — all changes must come through a PR with at least 1 approval and passing status checks. Direct pushes to `main` are blocked.
+
 ## Support & Contact
 
-Having issues, suggestions, or feature requests?
+We welcome your feedback! If you encounter any bugs, have suggestions, or want to request a new feature, please don't hesitate to reach out. We highly recommend using the GitHub Issues tab for bug reports and feature tracking, but you can also contact us directly via email.
 
-- 📧 **Email**: [support@satya-nayak.dev](mailto:support@satya-nayak.dev)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Satya-Siba-Nayak/Flux-Extension/issues)
+- 🐛 **Issue Tracker (Recommended)**: [GitHub Issues](https://github.com/Satya-Siba-Nayak/Flux-Extension/issues)
+- 📧 **Email Contact**: [support@satya-nayak.dev](mailto:support@satya-nayak.dev)
 
-## License
+## License 
 [MIT License](LICENSE)
