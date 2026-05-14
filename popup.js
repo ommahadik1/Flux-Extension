@@ -62,8 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.baseCurrency) baseCurrencySelect.value = data.baseCurrency;
         if (data.targetCurrency) targetCurrencySelect.value = data.targetCurrency;
         
-        enabledToggle.checked = data.hasOwnProperty("enabled") ? data.enabled : true;
-        showBadgeToggle.checked = data.hasOwnProperty("showBadge") ? data.showBadge : true;
+        enabledToggle.checked = Object.prototype.hasOwnProperty.call(data, "enabled") ? data.enabled : true;
+        showBadgeToggle.checked = Object.prototype.hasOwnProperty.call(data, "showBadge") ? data.showBadge : true;
         
         const currentTheme = data.theme || 'dark';
         document.documentElement.setAttribute('data-theme', currentTheme);
