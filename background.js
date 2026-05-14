@@ -198,6 +198,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // Safety net: keep the message channel open for any unhandled async paths.
+  // Safety net  keep the message channel open for any unhandled async paths.
   return true;
 });
