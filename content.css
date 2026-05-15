@@ -3,6 +3,10 @@
 .flux-converted {
   position: relative;
   display: inline;
+  /* Properties moved from inline style.cssText in content.js (SEC-003) */
+  background: transparent;
+  padding: 0;
+  margin: 0;
 }
 
 .flux-converted-badge {

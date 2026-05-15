@@ -38,6 +38,8 @@ function createCurrencyRegex(currencyCode) {
 // ── Domain Utilities ──────────────────────────────────────────────
 
 function getRootDomain(hostname) {
+  // Return IPv4 addresses as-is to avoid mangling them (EDGE-001)
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return hostname;
   const parts = hostname.split(".");
   if (parts.length <= 2) return hostname;
   const ccSLDs = ["co", "com", "org", "net", "gov", "edu", "ac"];
@@ -134,14 +136,11 @@ function convertTextNode(node) {
 
   const text = node.textContent;
   
-  // Create a fresh regex to avoid shared lastIndex state
-  const regex = createCurrencyRegex(baseCurrency);
-  if (!regex) return;
-  
-  if (!regex.test(text)) return;
-
-  // Create another fresh regex for the replace pass (test() consumed the first one)
+  // One fresh regex per text node — reset lastIndex after the test pass (BUG-002)
   const replaceRegex = createCurrencyRegex(baseCurrency);
+  if (!replaceRegex) return;
+  if (!replaceRegex.test(text)) return;
+  replaceRegex.lastIndex = 0; // reset before the replace pass
 
   const newText = text.replace(replaceRegex, (match, amountStr) => {
     const amount = parseCurrency(amountStr, baseCurrency);
@@ -156,7 +155,7 @@ function convertTextNode(node) {
     span.className = "flux-converted";
     span.dataset.originalPrice = text;
     span.textContent = newText;
-    span.style.cssText = "background:transparent;padding:0;margin:0;display:inline;";
+    // Styling handled by content.css (.flux-converted) — no inline style needed (SEC-003)
 
     if (showBadge) span.appendChild(createBadge(text));
 
@@ -261,6 +260,8 @@ function convertPrices(node) {
   if (node.nodeType === Node.TEXT_NODE) {
     convertTextNode(node);
   } else if (node.nodeType === Node.ELEMENT_NODE) {
+    // Early return: already converted — do NOT add to processedNodes so children
+    // inside lazily-loaded subtrees can still be visited later (BUG-003)
     if (node.dataset && (node.dataset.originalPrice || node.dataset.fluxConverted)) return;
 
     convertStructuredPrices(node);
@@ -269,22 +270,33 @@ function convertPrices(node) {
     for (const child of children) {
       convertPrices(child);
     }
+    // Mark only after conversion has actually run on this element (BUG-003)
+    processedNodes.add(node);
   }
-  processedNodes.add(node);
 }
 
 // ── Revert ───────────────────────────────────────────────────────
 
 function revertPrices() {
   document.querySelectorAll(".flux-converted").forEach((el) => {
-    const textNode = document.createTextNode(el.dataset.originalPrice || "");
-    if (el.parentElement) el.parentElement.replaceChild(textNode, el);
+    if (!el.parentElement) return;
+    if (el.dataset.originalPrice) {
+      // Normal path: restore the original text node (EDGE-004)
+      el.parentElement.replaceChild(document.createTextNode(el.dataset.originalPrice), el);
+    } else {
+      // originalPrice missing — unwrap span to preserve visible child content (EDGE-004)
+      el.replaceWith(...el.childNodes);
+    }
   });
 
   // Legacy class name support (in case page was converted before this update)
   document.querySelectorAll(".usd-inr-converted").forEach((el) => {
-    const textNode = document.createTextNode(el.dataset.originalPrice || "");
-    if (el.parentElement) el.parentElement.replaceChild(textNode, el);
+    if (!el.parentElement) return;
+    if (el.dataset.originalPrice) {
+      el.parentElement.replaceChild(document.createTextNode(el.dataset.originalPrice), el);
+    } else {
+      el.replaceWith(...el.childNodes);
+    }
   });
 
   document.querySelectorAll("[data-flux-converted], [data-usd-converted]").forEach((priceEl) => {
@@ -367,6 +379,13 @@ function initialize() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case "updateExchangeRate":
+      // Cancel pending observer flush before mutating globals to prevent
+      // a mid-flush convertPrices() running with a mixed old/new state (BUG-005)
+      if (observerTimeout) {
+        clearTimeout(observerTimeout);
+        observerTimeout = null;
+        pendingNodes = [];
+      }
       exchangeRate = request.exchangeRate;
       baseCurrency = request.baseCurrency || baseCurrency;
       targetCurrency = request.targetCurrency || targetCurrency;
