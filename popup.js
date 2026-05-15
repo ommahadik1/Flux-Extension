@@ -45,7 +45,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tab && tab.url) {
       try {
         const url = new URL(tab.url);
-        currentRootDomain = getRootDomain(url.hostname);
+        // Disable site-power for non-web protocols (chrome://, about:, extensions) (EDGE-003)
+        if (!url.hostname
+            || url.protocol === "chrome:"
+            || url.protocol === "about:"
+            || url.protocol === "chrome-extension:"
+            || url.protocol === "moz-extension:") {
+          sitePowerBtn.disabled = true;
+        } else {
+          currentRootDomain = getRootDomain(url.hostname);
+        }
       } catch {
         sitePowerBtn.disabled = true;
       }
@@ -136,8 +145,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (thisRequestId !== currentRequestId) return;
 
         if (response?.status === "stale") {
-          // Background discarded this as stale too — re-request
-          handleCurrencyChange();
+          // Background discarded as stale — fall back to last known rate in storage
+          // to avoid an infinite recursive loop (BUG-004)
+          chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
+            if (thisRequestId === currentRequestId) {
+              updateRateDisplay(data.exchangeRate, data.lastUpdate);
+            }
+          });
           return;
         }
 
