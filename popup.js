@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Domain Utilities ──────────────────────────────────────────
   function getRootDomain(hostname) {
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return hostname;
     const parts = hostname.split(".");
     if (parts.length <= 2) return hostname;
     const ccSLDs = ["co", "com", "org", "net", "gov", "edu", "ac"];
@@ -144,6 +145,15 @@ document.addEventListener("DOMContentLoaded", () => {
         // Discard if a newer request has been made since this one
         if (thisRequestId !== currentRequestId) return;
 
+        if (chrome.runtime.lastError) {
+          chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
+            if (thisRequestId === currentRequestId) {
+              updateRateDisplay(data.exchangeRate, data.lastUpdate);
+            }
+          });
+          return;
+        }
+
         if (response?.status === "stale") {
           // Background discarded as stale — fall back to last known rate in storage
           // to avoid an infinite recursive loop (BUG-004)
@@ -210,6 +220,15 @@ document.addEventListener("DOMContentLoaded", () => {
       refreshBtn.classList.remove("spinning");
       
       if (thisRequestId !== currentRequestId) return;
+
+      if (chrome.runtime.lastError) {
+        chrome.storage.local.get(["exchangeRate", "lastUpdate"], (data) => {
+          if (thisRequestId === currentRequestId) {
+            updateRateDisplay(data.exchangeRate, data.lastUpdate);
+          }
+        });
+        return;
+      }
 
       if (response?.exchangeRate) {
         updateRateDisplay(response.exchangeRate, response.lastUpdate);
